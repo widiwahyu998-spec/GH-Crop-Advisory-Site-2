@@ -889,23 +889,40 @@ async function syncSheet(){
 async function loadAllData(){
   const sp=document.getElementById('ssp'),ss=document.getElementById('sst');
   sp.classList.add('active');ss.textContent='🔄 Memuat data terbaru...';
-  try {
-    const res = await fetch(APPSCRIPT_URL+'?action=getAll&t='+Date.now());
-    const json = await res.json();
-    if(json.status==='ok'){
-      if(json.greenhouse)  { ghLog=json.greenhouse; lastD={}; ghLog.forEach(r=>{ var k=(r['GH']||r.gh||'').replace('GH ',''); if(!lastD[k]||r.time>lastD[k].time) lastD[k]={...r,gh:k}; }); }
+  const cbName='_ghcb'+Date.now();
+  window[cbName]=function(json){
+    sp.classList.remove('active');
+    delete window[cbName];
+    document.getElementById('jsonpScript')&&document.getElementById('jsonpScript').remove();
+    if(json&&json.status==='ok'){
+      if(json.greenhouse){
+        ghLog=json.greenhouse;
+        lastD={};
+        ghLog.forEach(r=>{
+          const k=String(r['GH']||r.gh||'').replace('GH ','').trim();
+          if(k&&(!lastD[k]||String(r['Waktu']||r.time||'')>String(lastD[k]['Waktu']||lastD[k].time||'')))
+            lastD[k]={...r,gh:k};
+        });
+      }
       if(json.plantProtection) optLog=json.plantProtection;
-      if(json.flushing)    flLog=json.flushing;
-      if(json.profiles)    profs=json.profiles;
-      renderGHL(); renderOPTL(); renderFlLog(); buildMon();
+      if(json.flushing) flLog=json.flushing;
+      if(json.profiles) profs=json.profiles;
+      renderGHL();renderOPTL();renderFlLog();buildMon();
       ss.textContent='✅ Data terbaru · '+now();
+    } else {
+      ss.textContent='⚠️ Gagal memuat data';
     }
-  } catch(e){
-    ss.textContent='⚠️ Gagal memuat — mode offline';
-  }
-  sp.classList.remove('active');
+  };
+  const s=document.createElement('script');
+  s.id='jsonpScript';
+  s.onerror=()=>{
+    sp.classList.remove('active');
+    ss.textContent='⚠️ Gagal memuat — cek koneksi';
+    delete window[cbName];
+  };
+  s.src=APPSCRIPT_URL+'?action=getAll&callback='+cbName+'&t='+Date.now();
+  document.head.appendChild(s);
 }
-
 /* ══ FLUSHING & MAINTENANCE ══ */
 
 const CHECKLIST_ITEMS = [
