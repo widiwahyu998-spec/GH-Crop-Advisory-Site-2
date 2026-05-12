@@ -1027,7 +1027,10 @@ function lockInputs(lock) {
   const ids = ['iSuhu','iRH','iMedia','iphMedia','iEC','iphNut','btnAnalyze',
                'varInput','jSerInput','nOPTInput','jTerInput','totTanInput','btnOPT','btnFlush'];
   ids.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = lock; });
-  document.querySelectorAll('.fase-btn').forEach(b => b.disabled = lock);
+  const faseTabs = document.getElementById('faseTabs');
+  if (faseTabs) faseTabs.querySelectorAll('.fase-btn').forEach(b => b.disabled = lock);
+  const chartBtns = document.getElementById('chartParamBtns');
+  if (chartBtns) chartBtns.querySelectorAll('.fase-btn').forEach(b => b.disabled = false);
 }
 
 /* ══════════════════════════════════════════
