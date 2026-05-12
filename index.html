@@ -21,6 +21,7 @@
 <link rel="manifest" href="manifest.json">
 
 <title>Greenhouse Crop Advisory</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 
 <style>
@@ -311,15 +312,34 @@ input:disabled,select:disabled,textarea:disabled{opacity:.45;cursor:not-allowed;
   <div class="scroll-area" id="scrollArea">
     <div class="main">
 
-      <!-- ══ MONITORING ══ -->
+<!-- ══ MONITORING ══ -->
       <section id="sec-monitoring" class="section active">
         <div class="ph"><div class="pt">Monitoring</div><div class="pd">Kondisi semua greenhouse.</div></div>
         <div class="gph-grid" id="monCards"></div>
         <div class="card">
-          <div class="ct">Detail Terakhir — <span id="monDGH">GH A</span></div>
+          <div class="ct">Detail Terakhir — <span id="monDGH">GH A</span> <span id="monDTime" style="font-size:10px;color:var(--il);font-weight:400;margin-left:6px;"></span></div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;" id="monDGrid">
             <div style="text-align:center;grid-column:1/-1;padding:24px;color:var(--il);">Belum ada data.</div>
           </div>
+        </div>
+        <!-- GRAFIK GH CONDITION -->
+        <div class="card" style="margin-top:12px;" id="chartGHCard" style="display:none;">
+          <div class="ct">📈 Grafik Kondisi GH — <span id="chartGHLabel">GH A</span></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;" id="chartParamBtns">
+            <button class="fb active" onclick="drawChart('suhu',this)">🌡️ Suhu</button>
+            <button class="fb" onclick="drawChart('rh',this)">💧 RH</button>
+            <button class="fb" onclick="drawChart('media',this)">🪴 Kel.Media</button>
+            <button class="fb" onclick="drawChart('ec',this)">⚡ EC</button>
+            <button class="fb" onclick="drawChart('ph',this)">⚗️ pH</button>
+          </div>
+          <canvas id="ghChart" style="width:100%;max-height:220px;"></canvas>
+          <div id="chartEmpty" style="display:none;text-align:center;padding:24px;color:var(--il);font-size:13px;">Belum cukup data untuk grafik (min. 2 entri).</div>
+        </div>
+        <!-- GRAFIK OPT -->
+        <div class="card" style="margin-top:12px;" id="chartOPTCard" style="display:none;">
+          <div class="ct">🛡️ Grafik Serangan OPT — <span id="chartOPTLabel">GH A</span></div>
+          <canvas id="optChart" style="width:100%;max-height:200px;"></canvas>
+          <div id="optChartEmpty" style="display:none;text-align:center;padding:24px;color:var(--il);font-size:13px;">Belum ada data serangan OPT.</div>
         </div>
       </section>
 
@@ -673,6 +693,7 @@ function buildMon(){
     c.appendChild(d);
   });
   showMonDet(curGH);
+renderGHChart(curGH);
 }
 function showMonDet(gh){
   document.getElementById('monDGH').textContent='GH '+gh;
@@ -893,7 +914,18 @@ async function loadAllData(){
     const res = await fetch(APPSCRIPT_URL+'?action=getAll&t='+Date.now());
     const json = await res.json();
     if(json.status==='ok'){
-      if(json.greenhouse)  { ghLog=json.greenhouse; lastD={}; ghLog.forEach(r=>{ var k=(r['GH']||r.gh||'').replace('GH ',''); if(!lastD[k]||r.time>lastD[k].time) lastD[k]={...r,gh:k}; }); }
+      if(json.greenhouse)  { ghLog=json.greenhouse;
+        lastD={};
+        // Sort dulu dari terlama ke terbaru, lalu ambil yang paling baru per GH
+        const sorted=[...ghLog].sort((a,b)=>{
+          const ta=String(a['Waktu']||a.time||'');
+          const tb2=String(b['Waktu']||b.time||'');
+          return ta>tb2?1:ta<tb2?-1:0;
+        });
+        sorted.forEach(r=>{
+          const k=String(r['GH']||r.gh||'').replace('GH ','').trim();
+          if(k) lastD[k]={...r,gh:k}; // overwrite → yang terakhir = terbaru
+        });
       if(json.plantProtection) optLog=json.plantProtection;
       if(json.flushing)    flLog=json.flushing;
       if(json.profiles)    profs=json.profiles;
@@ -1121,7 +1153,127 @@ function renderFlLog() {
 /* ══ END FLUSHING ══ */
 
 
-function pdang(v,mn,mx){const r=mx-mn,m=r*.2;if(v<mn-m||v>mx+m)return'danger';if(v<mn||v>mx)return'warning';return'optimal';}
+
+/* ══ CHART / GRAFIK ══ */
+let currentChartParam='suhu';
+let ghChartInstance=null, optChartInstance=null;
+
+function drawChart(param, btn){
+  currentChartParam=param;
+  document.querySelectorAll('#chartParamBtns .fb').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderGHChart(curGH);
+}
+
+function renderGHChart(gh){
+  const card=document.getElementById('chartGHCard');
+  const label=document.getElementById('chartGHLabel');
+  const empty=document.getElementById('chartEmpty');
+  if(label) label.textContent='GH '+gh;
+  if(card) card.style.display='block';
+  const ghData=ghLog.filter(r=>String(r['GH']||r.gh||'').replace('GH ','').trim()===gh)
+    .sort((a,b)=>{const ta=String(a['Waktu']||a.time||''),tb=String(b['Waktu']||b.time||'');return ta<tb?-1:ta>tb?1:0;})
+    .slice(-20);
+  const canvas=document.getElementById('ghChart');
+  if(!canvas) return;
+  if(ghData.length<2){empty.style.display='block';canvas.style.display='none';return;}
+  empty.style.display='none';canvas.style.display='block';
+  const paramMap={
+    suhu:{key:'Suhu(°C)',altKey:'suhu',label:'Suhu (°C)',color:'#d62828',min:25,max:40},
+    rh:{key:'RH(%)',altKey:'rh',label:'Kelembaban RH (%)',color:'#4895ef',min:50,max:75},
+    media:{key:'Kel.Media(%)',altKey:'media',label:'Kel. Media (%)',color:'#40916c',min:45,max:75},
+    ec:{key:'EC(mS/cm)',altKey:'ec',label:'EC (mS/cm)',color:'#e9a800',min:1,max:4},
+    ph:{key:'pH Nutrisi',altKey:'phNutrisi',label:'pH Nutrisi',color:'#9b5de5',min:5,max:7}
+  };
+  const pm=paramMap[currentChartParam]||paramMap.suhu;
+  const labels=ghData.map(r=>String(r['Waktu']||r.time||'').slice(0,8));
+  const vals=ghData.map(r=>parseFloat(r[pm.key]||r[pm.altKey]||0));
+  if(ghChartInstance) ghChartInstance.destroy();
+  const ctx=canvas.getContext('2d');
+  ghChartInstance=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels,
+      datasets:[{
+        label:pm.label,
+        data:vals,
+        borderColor:pm.color,
+        backgroundColor:pm.color+'22',
+        borderWidth:2.5,
+        pointRadius:4,
+        pointBackgroundColor:pm.color,
+        fill:true,
+        tension:0.3
+      },{
+        label:'Batas Min',
+        data:ghData.map(()=>pm.min),
+        borderColor:'#74c69d',
+        borderWidth:1,
+        borderDash:[5,5],
+        pointRadius:0,
+        fill:false
+      },{
+        label:'Batas Max',
+        data:ghData.map(()=>pm.max),
+        borderColor:'#d62828',
+        borderWidth:1,
+        borderDash:[5,5],
+        pointRadius:0,
+        fill:false
+      }]
+    },
+    options:{
+      responsive:true,
+      plugins:{legend:{labels:{font:{size:11},boxWidth:20}}},
+      scales:{
+        x:{ticks:{font:{size:10},maxRotation:45}},
+        y:{ticks:{font:{size:10}}}
+      }
+    }
+  });
+  renderOPTChart(gh);
+}
+
+function renderOPTChart(gh){
+  const card=document.getElementById('chartOPTCard');
+  const label=document.getElementById('chartOPTLabel');
+  const empty=document.getElementById('optChartEmpty');
+  if(label) label.textContent='GH '+gh;
+  if(card) card.style.display='block';
+  const optData=optLog.filter(r=>String(r['GH']||r.gh||'').replace('GH ','').trim()===gh)
+    .sort((a,b)=>{const ta=String(a['Waktu']||a.time||''),tb=String(b['Waktu']||b.time||'');return ta<tb?-1:ta>tb?1:0;})
+    .slice(-15);
+  const canvas=document.getElementById('optChart');
+  if(!canvas) return;
+  if(!optData.length){empty.style.display='block';canvas.style.display='none';return;}
+  empty.style.display='none';canvas.style.display='block';
+  const labels=optData.map(r=>String(r['OPT']||r.namaOPT||'').slice(0,12));
+  const vals=optData.map(r=>parseFloat(r['Intensitas(%)']||r.pct||0));
+  const colors=vals.map(v=>v>15?'#d62828':v>5?'#e9a800':'#40916c');
+  if(optChartInstance) optChartInstance.destroy();
+  const ctx=canvas.getContext('2d');
+  optChartInstance=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[{
+        label:'Intensitas Serangan (%)',
+        data:vals,
+        backgroundColor:colors,
+        borderRadius:6
+      }]
+    },
+    options:{
+      responsive:true,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{font:{size:10}}},
+        y:{beginAtZero:true,max:100,ticks:{font:{size:10}}}
+      }
+    }
+  });
+}
+  function pdang(v,mn,mx){const r=mx-mn,m=r*.2;if(v<mn-m||v>mx+m)return'danger';if(v<mn||v>mx)return'warning';return'optimal';}
 function stlbl(st){if(st==='ok')return'<span class="mst sok">✅ OK</span>';if(st==='low')return'<span class="mst swarn">⬇️ Rendah</span>';return'<span class="mst swarn">⬆️ Tinggi</span>';}
 function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
 function v(id){const el=document.getElementById(id);return el?el.value:'';}
