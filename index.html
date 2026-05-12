@@ -195,7 +195,7 @@ html,body{height:100%;overflow:hidden;font-family:'Inter',sans-serif;background:
   content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
   width:32px;height:3px;background:var(--g500);border-radius:0 0 4px 4px;
 }
-.bnav-btn.admin-only{display:none;}
+.bnav-btn.-only{display:none;}
 
 /* ═══ PAGE HEADER ═══ */
 .ph{margin-bottom:16px;}
@@ -421,7 +421,7 @@ canvas{max-height:220px;}
   </div>
   <div class="login-tabs">
     <button class="ltab active" onclick="showLoginTab('viewer',this)">👁️ Monitor</button>
-    <button class="ltab" onclick="showLoginTab('admin',this)">👤 Admin</button>
+    <button class="ltab" onclick="showLoginTab('',this)">👤 </button>
   </div>
   <div id="lerr" class="lerr"></div>
   <!-- VIEWER -->
@@ -433,11 +433,11 @@ canvas{max-height:220px;}
     </div>
     <button class="lbtn" onclick="enterViewer()">Masuk sebagai Viewer →</button>
   </div>
-  <!-- ADMIN -->
-  <div id="adminSection" class="login-section" style="display:none;">
+  <!--  -->
+  <div id="Section" class="login-section" style="display:none;">
     <div class="lfield">
       <label>Username</label>
-      <select id="ladmin">
+      <select id="l">
         <option value="">— Pilih Admin —</option>
         <option value="admin-A">Admin GH A</option>
         <option value="admin-B">Admin GH B</option>
@@ -1014,6 +1014,11 @@ function initApp() {
   buildJadwal();
   buildLogActions();
   showSec('monitoring', document.querySelector('.bnav-btn'));
+
+  // Tampilkan menu admin dulu sebelum load data
+  document.querySelectorAll('.admin-only').forEach(el => {
+    el.style.display = mode === 'admin' ? '' : 'none';
+  });
 
   // Load data
   loadAllData();
