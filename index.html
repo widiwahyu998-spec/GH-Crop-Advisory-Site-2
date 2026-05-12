@@ -999,7 +999,7 @@ function initApp() {
 
   // Admin-only nav buttons (GH Cond, Protection, Profil, Flushing)
   document.querySelectorAll('.admin-only').forEach(el => {
-    el.style.display = mode === 'admin' ? 'flex' : 'none';
+    el.style.display = mode === 'admin' ? '' : 'none';
   });
 
   // Viewer banner di GH Condition (tidak akan muncul karena viewer tidak punya akses menu ini)
@@ -1049,7 +1049,7 @@ function showSec(id, btn) {
   if (btn) btn.classList.add('active');
   document.getElementById('scrollArea').scrollTop = 0;
   if (id === 'monitoring') { buildMon(); }
-  if (id === 'log')        { renderGHLog(); renderOPTLog(); }
+  if (id === 'log')        { renderGHLog(); renderOPTLog(); renderFlLog(); }
   if (id === 'flushing')   { renderFlLog(); }
   if (id === 'profile')    { buildProfTabs(); }
 }
