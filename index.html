@@ -1087,9 +1087,7 @@ function loadAllData() {
       ghLog = json.greenhouse;
       // Sort asc by time, pick last per GH
       const sorted = [...ghLog].sort((a,b) => {
-        const ta = String(a['Waktu']||a.time||'');
-        const tb = String(b['Waktu']||b.time||'');
-        return ta < tb ? -1 : ta > tb ? 1 : 0;
+        return parseWaktu(a['Waktu']||a.time) - parseWaktu(b['Waktu']||b.time);
       });
       lastD = {};
       sorted.forEach(r => {
@@ -1717,8 +1715,8 @@ function renderGHLog() {
     ? ghLog.filter(r => String(r['GH']||r.gh||'').replace('GH ','').trim() === curGH)
     : ghLog;
   // Sort newest first
-  const sorted = [...logData].sort((a,b) => String(b['Waktu']||b.time||'') > String(a['Waktu']||a.time||'') ? 1 : -1);
-  tb.innerHTML = sorted.slice(0,50).map(d => {
+  const sorted = [...logData].sort((a,b) => parseWaktu(b['Waktu']||b.time) - parseWaktu(a['Waktu']||a.time));
+  tb.innerHTML = sorted.map(d => {
     const t  = String(d['Waktu']||d.time||'');
     const gh = String(d['GH']||d.gh||'');
     const f  = String(d['Fase']||d.fase||'');
@@ -1796,7 +1794,18 @@ async function clearLog() {
 /* ══════════════════════════════════════════
    UTILS
 ══════════════════════════════════════════ */
-function danger(v, mn, mx) {
+function parseWaktu(str) {
+  if (!str) return 0;
+  str = String(str).trim();
+  try {
+    const m = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})[,\s]+(\d{1,2}):(\d{2})/);
+    if (m) return new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5]).getTime();
+    const m2 = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (m2) return new Date(+m2[3], +m2[2]-1, +m2[1]).getTime();
+    return new Date(str).getTime() || 0;
+  } catch(e) { return 0; }
+}
+  function danger(v, mn, mx) {
   const r = mx - mn, m = r * 0.2;
   if (v < mn-m || v > mx+m) return 'danger';
   if (v < mn   || v > mx)   return 'warning';
